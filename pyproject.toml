@@ -1,0 +1,10 @@
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"] # 选择要启用的规则
+
+[tool.pytest.ini_options]
+pythonpath = [
+  "."
+]

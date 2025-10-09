@@ -1,85 +1,75 @@
+# app/services/qa_service.py (修改后)
 import os
 from pydantic import SecretStr
 from langchain_openai import ChatOpenAI
-from langchain_community.document_loaders import PyMuPDFLoader
-from langchain.text_splitter import CharacterTextSplitter
-from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain_community.vectorstores import Chroma
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_postgres import PGVector # <--- 修改点
 from langchain.chains import RetrievalQA
 
-RAG_CHAIN_CACHE = {}
+# --- 数据库连接信息 ---
+CONNECTION_STRING = "postgresql+psycopg2://rag_user:rag_password@localhost:5432/rag_db"
+COLLECTION_NAME = "all_documents"
 
-def create_rag_chain(file_path: str, llm_api_key: str, llm_base_url: str, llm_model: str):
+# 缓存现在可以缓存 PGVector 的 store 对象或 retriever 对象
+DB_CACHE = {}
+
+def get_retriever():
     """
-    根据给定的文件和模型配置，创建一个完整的 RAG 检索链。
+    连接到 PGVector 并返回一个检索器。使用缓存避免重复连接。
     """
-    # 1. 加载文档 (Load)
-    loader = PyMuPDFLoader(file_path)
-    documents = loader.load()
+    if "retriever" in DB_CACHE:
+        print("从缓存中复用检索器...")
+        return DB_CACHE["retriever"]
 
-    # 2. 文档分割 (Split)
-    text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
-    texts = text_splitter.split_documents(documents)
-
-    # 3. 嵌入模型 (Embedding)
-    # 使用免费的开源模型，它会自动从 HuggingFace 下载
+    print("首次连接到 PGVector 数据库...")
     embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 
-    # 4. 存入向量数据库 (Store) & 创建检索器 (Retrieve)
-    db = Chroma.from_documents(texts, embeddings)
-    retriever = db.as_retriever()
 
-    # 5. 创建 LLM 实例
+    store = PGVector(
+        embeddings=embeddings,  # <-- 修改这里！
+        collection_name=COLLECTION_NAME,
+        connection=CONNECTION_STRING,
+    )
+    retriever = store.as_retriever()
+    DB_CACHE["retriever"] = retriever # 存入缓存
+    return retriever
+
+
+def query_document(question: str) -> dict:
+    """
+    接收问题，使用 PGVector 检索并生成答案。
+    """
+    # 从 .env 文件加载环境变量
+    llm_api_key = os.getenv("DEEPSEEK_API_KEY")
+    llm_base_url = "https://api.deepseek.com"
+    llm_model = "deepseek-chat"
+    if not llm_api_key:
+        raise ValueError("错误：未找到 DEEPSEEK_API_KEY。")
+
+    # 1. 获取检索器
+    retriever = get_retriever()
+
+    # 2. 创建 LLM
     llm = ChatOpenAI(
-        api_key=SecretStr(llm_api_key), # 使用 SecretStr 包装密钥以符合类型检查
+        api_key=SecretStr(llm_api_key),
         base_url=llm_base_url,
         model=llm_model
     )
 
-    # 6. 创建 RetrievalQA 链
+    # 3. 创建 RAG 链
     rag_chain = RetrievalQA.from_chain_type(
         llm=llm,
         chain_type="stuff",
         retriever=retriever,
         return_source_documents=True
     )
-
     return rag_chain
-
-def query_document(question: str, file_path: str) -> dict:
-    """
-    对外提供问答服务的主函数。
-    它会加载环境变量，创建 RAG 链，并执行查询。
-    """
-    global RAG_CHAIN_CACHE
-    if file_path in RAG_CHAIN_CACHE:
-        print(f"使用缓存的 RAG 链，文件路径: {file_path}")
-        rag_chain = RAG_CHAIN_CACHE[file_path]
-    else:
-        print(f"创建新的 RAG 链，文件路径: {file_path}")
-        llm_api_key = os.getenv("DEEPSEEK_API_KEY")
-        llm_base_url = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
-        llm_model = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
-
-        if not llm_api_key:
-            raise ValueError("DEEPSEEK_API_KEY 环境变量未设置。请在 .env 文件中配置您的 API Key。")
-
-        rag_chain = create_rag_chain(
-            file_path=file_path,
-            llm_api_key=llm_api_key,
-            llm_base_url=llm_base_url,
-            llm_model=llm_model
-        )
-        RAG_CHAIN_CACHE[file_path] = rag_chain
-        
 
     print(f"正在对问题进行查询: {question}")
     result = rag_chain({"query": question})
     print("查询完成。")
 
-    # 为了方便API返回，我们整理一下结果
     return {
         "answer": result.get("result"),
         "source_documents": [doc.page_content for doc in result.get("source_documents", [])]
     }
-    

@@ -13,7 +13,7 @@ const selectedDoc = ref('');
 const chatBoxRef = ref(null); // 用于控制滚动条
 
 // --- API 地址配置 ---
-const API_BASE_URL = 'http://127.0.0.1:8000';
+const API_BASE_URL = 'http://127.0.0.1:8000/api/v1';
 
 // --- 生命周期钩子 ---
 onMounted(async () => {

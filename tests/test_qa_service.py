@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import patch, MagicMock
-from app.services import qa_service
+from app.services import rag_service
 
 import os
 from dotenv import load_dotenv
@@ -39,7 +39,7 @@ def test_query_document_with_mocking(mock_create_rag_chain):
     # 2. 执行 (Act)
     # -----------------
     # 调用我们真正想要测试的函数
-    actual_response = qa_service.query_document(
+    actual_response = rag_service.query_document(
         question=test_question,
         file_path=test_file_path
     )

@@ -1,0 +1,36 @@
+# Web框架
+fastapi==0.115.0
+uvicorn[standard]==0.32.0
+pydantic==2.12.0
+python-dotenv==1.1.1
+
+# LangChain核心包
+langchain==0.3.27
+langchain-community==0.3.31
+langchain-core==0.3.78
+langchain-openai==0.3.35
+langchain-huggingface==0.3.1
+langchain-text-splitters==0.3.11
+
+# 数据库和向量存储
+psycopg2-binary==2.9.9
+langchain-postgres==0.0.12
+faiss-cpu==1.12.0
+sentence-transformers==5.1.1
+chromadb==1.1.1
+
+# PDF处理
+pymupdf==1.26.4
+pypdf==5.2.0
+
+# HTTP客户端
+httpx==0.28.1
+aiohttp==3.13.0
+
+# 测试
+pytest==8.3.4
+pytest-asyncio==0.21.2
+
+# 开发工具
+black==24.10.0
+ruff==0.8.7

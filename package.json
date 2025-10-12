@@ -1,0 +1,9 @@
+{
+    "name": "pro-rag-bot-backend",
+    "version": "1.0.0",
+    "scripts": {
+        "dev": "uvicorn app.main:app --reload",
+        "ingest": "python ingest.py",
+        "test": "pytest -v"
+    }
+}

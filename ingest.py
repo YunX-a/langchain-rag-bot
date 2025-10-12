@@ -1,60 +1,44 @@
 # ingest.py
-import os
 from pathlib import Path
-from langchain_community.document_loaders import PyMuPDFLoader
-from langchain_text_splitters import CharacterTextSplitter
-from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_postgres import PGVector
+from app.services.ingestion_service import process_and_embed_document
+from app.core.config import settings
 
-# --- 数据库连接信息 ---
-CONNECTION_STRING = "postgresql+psycopg2://rag_user:rag_password@localhost:5432/rag_db"
-COLLECTION_NAME = "all_documents"
-
-def ingest_documents():
+def ingest_all_documents():
+    """
+    遍历 data 目录下的所有 PDF,并调用核心服务进行处理。
+    """
     data_dir = Path("data")
-    all_docs = []
-    
-    print("开始加载所有 PDF 文档...")
-    for pdf_path in data_dir.rglob("*.pdf"):
-        print(f"  - 正在加载: {pdf_path.name}")
-        try: # 增加一个 try...except 块来捕获单个文件的加载错误
-            loader = PyMuPDFLoader(str(pdf_path))
-            documents = loader.load()
-            all_docs.extend(documents)
-        except Exception as e:
-            print(f"    !!! 加载文件 {pdf_path.name} 时出错: {e}")
-    
-    if not all_docs:
-        print("在 data/ 目录下没有成功加载任何 PDF 文件。")
+    total_splits = 0
+    processed_files = 0
+
+    print("开始扫描并处理 data/ 目录下的所有 PDF 文档...")
+    # 从 data 目录开始，遍历它自己以及它下面的所有子文件夹，找出所有以 .pdf 结尾的文件
+    pdf_files = list(data_dir.rglob("*.pdf"))
+
+    if not pdf_files:
+        print("在 data/ 目录下没有找到任何 PDF 文件。")
         return
 
-    print(f"文档加载完成，共 {len(all_docs)} 页。")
+    for pdf_path in pdf_files:
+        print("-" * 50)
+        try:
+            num_splits = process_and_embed_document(
+                file_path=str(pdf_path),
+                collection_name=settings.COLLECTION_NAME,
+                embeddings_model_name=settings.EMBEDDING_MODEL_NAME,
+                connection_string=settings.DATABASE_URL
+            )
+            if num_splits > 0:
+                total_splits += num_splits
+                processed_files += 1
+        except Exception as e:
+            print(f"!!! 处理文件 {pdf_path.name} 时发生未知错误: {e}")
 
-    print("开始切分文档...")
-    text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
-    splits = text_splitter.split_documents(all_docs)
-    print(f"文档被切分成 {len(splits)} 个文本块。")
-
-    # --- 核心修改：在这里进行数据清洗 ---
-    print("开始清洗文本块中的非法字符...")
-    for doc in splits:
-        # 将 page_content 中的 NUL(0x00) 字符替换为空字符串
-        doc.page_content = doc.page_content.replace('\x00', '')
-    print("文本清洗完成。")
-    # ------------------------------------
-
-    print("创建嵌入模型...")
-    embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-    
-    print("开始将文档存入 PGVector... (这可能需要很长时间，请耐心等待)")
-    PGVector.from_documents(
-        embedding=embeddings,
-        documents=splits,
-        collection_name=COLLECTION_NAME,
-        connection=CONNECTION_STRING,
-    )
-    print("所有文档已成功存入 PGVector 数据库！")
+    print("-" * 50)
+    print("\n所有文档处理完毕!")
+    print(f"总共处理了 {processed_files} 个文件。")
+    print(f"总共生成了 {total_splits} 个文本块并存入数据库。")
 
 
 if __name__ == "__main__":
-    ingest_documents()
+    ingest_all_documents()

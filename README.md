@@ -1,6 +1,6 @@
 # LangChain RAG Bot - 智能文档问答系统
 
-基于 LangChain 和 FastAPI 构建的专业级文档问答机器人，支持 PDF 文档的智能检索和问答。
+基于 LangChain 和 FastAPI 构建的文档问答机器人，支持 PDF 文档的智能检索和问答。
 
 ## ✨ 功能特性
 

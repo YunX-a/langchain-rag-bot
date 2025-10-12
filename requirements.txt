@@ -33,4 +33,9 @@ pytest-asyncio==0.21.2
 
 # 开发工具
 black==24.10.0
-ruff==0.8.7
+ruff
+
+# --- 用户认证与数据库 ORM ---
+SQLAlchemy==2.0.31
+bcrypt
+python-jose[cryptography]==3.3.0

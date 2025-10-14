@@ -14,7 +14,8 @@ langchain-text-splitters==0.3.11
 
 # 数据库和向量存储
 psycopg2-binary==2.9.9
-langchain-postgres==0.0.12
+asyncpg==0.30.0
+langchain-postgres==0.0.15
 faiss-cpu==1.12.0
 sentence-transformers==5.1.1
 chromadb==1.1.1

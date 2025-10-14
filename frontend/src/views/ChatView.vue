@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { ref, nextTick } from 'vue';
-import { ElNotification } from 'element-plus';
-import { Promotion, Loading, SwitchButton } from '@element-plus/icons-vue';
+
+import { ref, nextTick, computed } from 'vue';
+import { ElNotification, ElMessage } from 'element-plus';
+import { Promotion, Loading, SwitchButton, UploadFilled } from '@element-plus/icons-vue';
+
 import { useAuthStore } from '@/stores/auth';
 
 // --- 新增：获取 Auth Store ---
@@ -110,7 +112,35 @@ const sendMessage = async () => {
     isLoading.value = false;
   }
 };
+
+const uploadUrl = `${API_BASE_URL}/upload`;
+
+const uploadHeaders = computed(() => ({
+  Authorization: `Bearer ${authStore.token}`,
+}));
+
+const handleUploadSuccess = (response: any, file: any) => {
+  ElMessage.success(`${file.name} 上传成功，正在后台处理...`);
+};
+
+const handleUploadError = (error: any, file: any) => {
+  let message = '上传失败，请检查文件格式或网络连接。';
+  // 尝试从后端返回的错误信息中解析 detail 字段
+  try {
+    const errorBody = JSON.parse(error.message || '{}');
+    if (errorBody && errorBody.detail) {
+      message = errorBody.detail;
+    }
+  } catch (e) {
+    // 解析失败则使用默认错误信息
+  }
+  ElMessage.error(`${file.name} 上传失败: ${message}`);
+};
+
 </script>
+
+
+
 
 <template>
   <el-container class="main-container">
@@ -140,7 +170,7 @@ const sendMessage = async () => {
         </div>
       </div>
       <div v-if="isLoading && chatHistory[chatHistory.length - 1]?.content === ''" class="message-row assistant">
-         <div class="message-bubble loading-bubble">
+        <div class="message-bubble loading-bubble">
           <el-icon class="is-loading"><Loading /></el-icon>
           <span>正在思考中...</span>
         </div>
@@ -193,10 +223,15 @@ const sendMessage = async () => {
   .message-row.assistant { align-items: flex-start; }
   .message-row.assistant .message-bubble { background-color: #ffffff; color: #303133; }
   .message-row p { margin: 0; white-space: pre-wrap; word-wrap: break-word; }
-  .input-area { padding: 20px; background-color: #ffffff; border-top: 1px solid #e4e7ed; display: flex; align-items: center; }
-  .loading-bubble { display: flex; align-items: center; gap: 10px; }
-  .sources-container {
-    margin-top: 15px;
+  .input-area {
+    display: flex;
+    align-items: center;
+    gap: 10px; /* 为上传按钮和输入框之间添加间距 */
+  }
+  .upload-btn-container {
+    line-height: 0; /* 优化按钮的垂直对齐 */
+  }
+  .upload-btn {
     padding-top: 10px;
     border-top: 1px solid #e4e7ed;
     font-size: 0.85rem;

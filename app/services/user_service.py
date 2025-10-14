@@ -2,7 +2,7 @@
 from sqlalchemy.orm import Session
 from app.models.user import User
 from app.schemas.user import UserCreate
-from app.core.security import get_password_hash, verify_password
+from app.core.password import get_password_hash, verify_password
 from typing import Optional
 
 def get_user_by_username(db: Session, username: str) -> Optional[User]:

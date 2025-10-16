@@ -2,18 +2,22 @@
 
 基于 LangChain 和 FastAPI 构建的文档问答机器人，支持 PDF 文档的智能检索和问答。
 
-## ✨ 功能特性
+##  功能特性
 
 * **智能文档解析**：支持 PDF 文档的自动解析和文本提取
 * **向量化检索**：基于向量相似度的精准文档检索
+* **中文优化**：使用 `text2vec-base-chinese` 模型，专为中文文档优化
 * **RAG 架构**：完整的检索增强生成 (RAG) 流程实现
 * **多种向量存储**：支持 FAISS、PGVector、ChromaDB 等向量数据库
+* **用户认证系统**：JWT Token 认证，支持用户注册、登录
+* **聊天历史记录**：保存和管理用户的对话历史
 * **缓存机制**：内置智能缓存，提升重复查询性能
 * **REST API**：基于 FastAPI 的标准化 API 接口
 * **CORS 支持**：支持跨域请求，便于前端集成
 * **异步处理**：支持异步操作，提升并发性能
+* **流式响应**：支持 SSE 流式输出，实时获取 AI 回复
 
-## 🛠️ 技术栈
+##  技术栈
 
 ### 后端核心
 
@@ -24,7 +28,7 @@
 
 ### AI/ML 组件
 
-* **嵌入模型**: sentence-transformers (HuggingFace)
+* **嵌入模型**: HuggingFace (shibing624/text2vec-base-chinese - 中文优化)
 * **向量数据库**: FAISS, PGVector, ChromaDB
 * **LLM 集成**: OpenAI 兼容接口 (DeepSeek)
 * **文档处理**: PyMuPDF, PyPDF
@@ -34,9 +38,11 @@
 * **代码质量**: Ruff, Black
 * **测试框架**: Pytest
 * **环境管理**: Python-dotenv
+* **数据库 ORM**: SQLAlchemy 2.0.31
 * **数据库**: PostgreSQL + psycopg2
+* **身份认证**: JWT (python-jose), bcrypt
 
-## 🚀 快速开始
+##  快速开始
 
 ### 1. 环境准备
 
@@ -73,13 +79,28 @@ pip install -r requirements-dev.txt
 创建 `.env` 文件并配置必要的环境变量：
 
 ```bash
-# 复制示例配置
+# 复制示例配置（如果有的话）
 cp .env.example .env
 
-# 编辑配置文件，设置您的 API 密钥
-# 支持 OpenAI、DeepSeek 等兼容 OpenAI API 的服务
+# 或者直接创建 .env 文件，添加以下内容：
+# DeepSeek API 密钥（必需）
 DEEPSEEK_API_KEY=your_api_key_here
+
+# 数据库配置（可选，默认值如下）
+DB_USER=rag_user
+DB_PASSWORD=rag_password
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=rag_db
+
+# 嵌入模型配置（可选）
+EMBEDDING_MODEL_NAME=shibing624/text2vec-base-chinese
+
+# JWT 密钥（生产环境请修改）
+SECRET_KEY=your_secret_key_here
 ```
+
+> 💡 **提示**：首次运行时，嵌入模型会自动从 HuggingFace 下载，可能需要几分钟时间。
 
 ### 5. 准备数据
 
@@ -104,17 +125,73 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 * **API 文档**: <http://localhost:8000/docs>
 * **健康检查**: <http://localhost:8000/>
+* **API 基础路径**: <http://localhost:8000/api/v1>
 
-## 📖 API 使用说明
+## 数据库初始化
+
+如果使用 PostgreSQL 和 PGVector，需要先初始化数据库：
+
+```bash
+# 初始化数据库表结构
+python db_init.py
+
+# 摄取文档到向量数据库
+python ingest.py
+```
+
+##  API 使用说明
+
+### 用户认证
+
+#### 注册新用户
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/users/register" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "email": "user@example.com",
+       "password": "your_password",
+       "full_name": "张三"
+     }'
+```
+
+#### 用户登录
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/auth/login" \
+     -H "Content-Type: application/x-www-form-urlencoded" \
+     -d "username=user@example.com&password=your_password"
+```
+
+登录成功后会返回 access_token，后续请求需要在 Header 中携带。
 
 ### 查询文档
 
 ```bash
-curl -X POST "http://localhost:8000/query" \
+curl -X POST "http://localhost:8000/api/v1/rag/query" \
      -H "Content-Type: application/json" \
+     -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
      -d '{
        "question": "什么是操作系统？"
      }'
+```
+
+### 流式查询（SSE）
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/rag/query-stream" \
+     -H "Content-Type: application/json" \
+     -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+     -d '{
+       "question": "什么是操作系统？"
+     }'
+```
+
+### 查看聊天历史
+
+```bash
+curl -X GET "http://localhost:8000/api/v1/history/" \
+     -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
 ```
 
 ### 响应格式
@@ -124,7 +201,7 @@ curl -X POST "http://localhost:8000/query" \
   "answer": "操作系统是管理计算机硬件与软件资源的计算机程序...",
   "source_documents": [
     {
-      "content": "相关文档片段",
+      "page_content": "相关文档片段",
       "metadata": {
         "source": "document.pdf",
         "page": 1
@@ -134,16 +211,52 @@ curl -X POST "http://localhost:8000/query" \
 }
 ```
 
-## 🏗️ 项目结构
+### 流式响应格式（SSE）
+
+```text
+data: {"type": "token", "content": "操作"}
+data: {"type": "token", "content": "系统"}
+data: {"type": "token", "content": "是"}
+...
+data: {"type": "source_documents", "content": [...]}
+data: {"type": "done"}
+```
+
+##  项目结构
 
 ```text
 langchain-rag-bot/
 ├── app/                    # 应用核心代码
 │   ├── __init__.py
 │   ├── main.py            # FastAPI 应用入口
+│   ├── api/               # API 路由层
+│   │   ├── deps.py       # 依赖注入
+│   │   └── routers/      # 路由模块
+│   │       ├── auth.py   # 认证路由
+│   │       ├── users.py  # 用户管理
+│   │       ├── rag.py    # RAG 问答
+│   │       └── history.py # 历史记录
+│   ├── core/              # 核心配置
+│   │   ├── config.py     # 应用配置
+│   │   ├── security.py   # 安全相关
+│   │   └── password.py   # 密码处理
+│   ├── crud/              # 数据库操作
+│   │   ├── crud_user.py  # 用户 CRUD
+│   │   └── crud_history.py # 历史记录 CRUD
+│   ├── db/                # 数据库连接
+│   │   └── session.py    # 数据库会话
+│   ├── models/            # 数据库模型
+│   │   ├── user.py       # 用户模型
+│   │   └── history.py    # 历史记录模型
+│   ├── schemas/           # Pydantic 模式
+│   │   ├── user.py       # 用户模式
+│   │   ├── token.py      # Token 模式
+│   │   ├── rag.py        # RAG 模式
+│   │   └── history.py    # 历史记录模式
 │   └── services/          # 业务逻辑层
-│       ├── __init__.py
-│       └── qa_service.py  # 问答服务核心逻辑
+│       ├── rag_service.py      # RAG 核心服务
+│       ├── user_service.py     # 用户服务
+│       └── ingestion_service.py # 文档摄取服务
 ├── data/                  # PDF 文档存储目录
 ├── tests/                 # 测试代码
 │   ├── __init__.py
@@ -153,10 +266,12 @@ langchain-rag-bot/
 ├── .gitignore
 ├── requirements.txt       # 生产依赖
 ├── requirements-dev.txt   # 开发依赖
+├── db_init.py            # 数据库初始化脚本
+├── ingest.py             # 文档摄取脚本
 └── README.md
 ```
 
-## 🔧 配置选项
+##  配置选项
 
 ### 向量数据库配置
 
@@ -170,11 +285,14 @@ langchain-rag-bot/
 
 支持多种嵌入模型：
 
-* **HuggingFace**：`sentence-transformers/all-MiniLM-L6-v2`（默认）
+* **HuggingFace**：`shibing624/text2vec-base-chinese`（默认，中文优化）
+* **备选模型**：`sentence-transformers/all-MiniLM-L6-v2`（多语言）
 * **OpenAI**：text-embedding-ada-002
 * **自定义模型**：可配置任何兼容的嵌入服务
 
-## 🧪 测试
+> 💡 **提示**：默认使用 `shibing624/text2vec-base-chinese` 模型，专为中文文档优化，提供更好的中文检索效果。
+
+##  测试
 
 运行测试套件：
 
@@ -189,7 +307,7 @@ pytest tests/test_qa_service.py
 pytest --cov=app tests/
 ```
 
-## 🚀 部署
+##  部署
 
 ### Docker 部署
 
@@ -209,7 +327,7 @@ docker run -p 8000:8000 --env-file .env langchain-rag-bot
 4. **设置监控和日志**追踪应用性能
 5. **使用容器编排**（Docker Compose/Kubernetes）
 
-## 🤝 贡献指南
+##  贡献指南
 
 1. Fork 本项目
 2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
@@ -217,18 +335,20 @@ docker run -p 8000:8000 --env-file .env langchain-rag-bot
 4. 推送到分支 (`git push origin feature/AmazingFeature`)
 5. 创建 Pull Request
 
-## 📄 许可证
+##  许可证
 
 本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情。
 
-## ⚠️ 注意事项
+##  注意事项
 
 * 确保有足够的内存来处理大型 PDF 文档
+* 首次启动时会自动下载中文嵌入模型（约 400MB），请保持网络畅通
 * API 密钥请妥善保管，不要提交到版本控制
 * 生产环境建议使用专业的向量数据库（如 PGVector）
 * 定期备份重要的文档和配置
+* 推荐使用中文文档以获得最佳检索效果
 
-## 📞 支持
+##  支持
 
 如果您遇到问题或有疑问，请：
 

@@ -25,7 +25,7 @@ class Settings(BaseSettings):
         return f"postgresql+psycopg://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
 
     # 嵌入模型配置
-    EMBEDDING_MODEL_NAME: str = "sentence-transformers/all-MiniLM-L6-v2"
+    EMBEDDING_MODEL_NAME: str = "shibing624/text2vec-base-chinese"
 
     # 向量数据库集合名称
     COLLECTION_NAME: str = "all_documents"

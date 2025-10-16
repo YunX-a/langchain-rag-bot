@@ -38,7 +38,9 @@ def get_retriever(connection: str, collection_name: str, embeddings_model_name: 
         connection=connection,
     )
     
-    retriever = store.as_retriever()
+    retriever = store.as_retriever(
+        search_kwargs={'k': 10}
+    )
     RETRIEVER_CACHE[cache_key] = retriever
     return retriever
 
@@ -93,7 +95,6 @@ async def stream_rag_answer(
     print("--- DEBUG 1: 进入 stream_rag_answer 函数 ---")
     print("--- DEBUG 2: 开始同步检索文档... ---")
     
-    # (★★★★★ 关键修改 ★★★★★)
     # 使用同步的 invoke 方法替代有问题的 ainvoke
     docs = retriever.invoke(question)
     
@@ -113,7 +114,6 @@ async def stream_rag_answer(
         callbacks=[callback],
     )
     
-    # (★★★★★ 关键修改 ★★★★★)
     # 我们需要一个新的 chain 来处理已经检索到的文档
     # 而不是让 chain 再次去检索
     template = """
